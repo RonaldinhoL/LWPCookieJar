@@ -8,7 +8,7 @@ package cookiejar
 
 import (
 	"fmt"
-	"github.com/RonaldinhoL/LWPCookieJar/internal/ascii"
+	"github.com/RonaldinhoL/persistent-cookiejar/internal/ascii"
 	"strings"
 	"unicode/utf8"
 )

@@ -8,7 +8,7 @@ package cookiejar
 import (
 	"errors"
 	"fmt"
-	"github.com/RonaldinhoL/LWPCookieJar/internal/ascii"
+	"github.com/RonaldinhoL/persistent-cookiejar/internal/ascii"
 	"net"
 	"net/http"
 	"net/url"
@@ -102,6 +102,9 @@ type entry struct {
 	Expires    time.Time
 	Creation   time.Time
 	LastAccess time.Time
+	defPath    string
+	host       string
+	key        string
 	c          *http.Cookie
 
 	// seqNum is a sequence number so that Cookies returns cookies in a
@@ -283,6 +286,7 @@ func (j *Jar) setCookies(u *url.URL, cookies []*http.Cookie, now time.Time) {
 			j.nextSeqNum++
 		}
 		e.LastAccess = now
+		e.key = key
 		submap[id] = e
 		modified = true
 	}
@@ -426,6 +430,8 @@ func (j *Jar) newEntry(c *http.Cookie, now time.Time, defPath, host string) (e e
 	e.Secure = c.Secure
 	e.HttpOnly = c.HttpOnly
 	e.c = c
+	e.defPath = defPath
+	e.host = host
 
 	switch c.SameSite {
 	case http.SameSiteDefaultMode:
