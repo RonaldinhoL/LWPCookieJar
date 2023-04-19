@@ -102,6 +102,7 @@ type entry struct {
 	Expires    time.Time
 	Creation   time.Time
 	LastAccess time.Time
+	c          *http.Cookie
 
 	// seqNum is a sequence number so that Cookies returns cookies in a
 	// deterministic order, even for cookies that have equal Path length and
@@ -424,6 +425,7 @@ func (j *Jar) newEntry(c *http.Cookie, now time.Time, defPath, host string) (e e
 	e.Value = c.Value
 	e.Secure = c.Secure
 	e.HttpOnly = c.HttpOnly
+	e.c = c
 
 	switch c.SameSite {
 	case http.SameSiteDefaultMode:
