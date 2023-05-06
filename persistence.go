@@ -110,7 +110,7 @@ func (j *Jar) DeserializeCookiesFromStr(cookiesStr string) (err error) {
 	return
 }
 
-func same_site_str_to_int(val string) (SameSite http.SameSite) {
+func SameSiteStrToInt(val string) (SameSite http.SameSite) {
 	SameSite = http.SameSiteDefaultMode
 	if len(val) == 0 {
 		return
@@ -129,4 +129,17 @@ func same_site_str_to_int(val string) (SameSite http.SameSite) {
 		SameSite = http.SameSiteDefaultMode
 	}
 	return
+}
+
+func SameSiteIntToStr(sameSite http.SameSite) string {
+	switch sameSite {
+	case http.SameSiteLaxMode:
+		return "lax"
+	case http.SameSiteStrictMode:
+		return "strict"
+	case http.SameSiteNoneMode:
+		return "none"
+	default:
+		return ""
+	}
 }
