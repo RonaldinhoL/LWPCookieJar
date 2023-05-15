@@ -3,6 +3,7 @@ package cookiejar
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -23,9 +24,10 @@ type PersistenceItem struct {
 	DefPath string
 	Host    string
 	Cookie  *http.Cookie
+	U       url.URL
 }
 
-func (j *Jar) SerializeCookiesToStr() (string, error) {
+func (j *Jar) GetAllCookiesAsPersistenceItems() []PersistenceItem {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 
@@ -37,9 +39,17 @@ func (j *Jar) SerializeCookiesToStr() (string, error) {
 				DefPath: entry.defPath,
 				Host:    entry.host,
 				Cookie:  entry.c,
+				U:       entry.u,
 			})
 		}
 	}
+	return items
+}
+
+func (j *Jar) SerializeCookiesToStr() (string, error) {
+	items := j.GetAllCookiesAsPersistenceItems()
+	j.mu.Lock()
+	defer j.mu.Unlock()
 
 	if r, err := json.Marshal(items); err != nil {
 		return "", err
@@ -67,6 +77,7 @@ func (j *Jar) DeserializeCookiesFromStr(cookiesStr string) (err error) {
 		host := i.Host
 		defPath := i.DefPath
 		cookie := i.Cookie
+		u := i.U
 
 		e, remove, err := j.newEntry(cookie, now, defPath, host)
 		if err != nil {
@@ -96,6 +107,7 @@ func (j *Jar) DeserializeCookiesFromStr(cookiesStr string) (err error) {
 		}
 		e.LastAccess = now
 		e.key = key
+		e.u = u
 		submap[id] = e
 		modified = true
 

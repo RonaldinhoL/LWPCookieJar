@@ -106,6 +106,7 @@ type entry struct {
 	host       string
 	key        string
 	c          *http.Cookie
+	u          url.URL
 
 	// seqNum is a sequence number so that Cookies returns cookies in a
 	// deterministic order, even for cookies that have equal Path length and
@@ -287,6 +288,7 @@ func (j *Jar) setCookies(u *url.URL, cookies []*http.Cookie, now time.Time) {
 		}
 		e.LastAccess = now
 		e.key = key
+		e.u = *u
 		submap[id] = e
 		modified = true
 	}
