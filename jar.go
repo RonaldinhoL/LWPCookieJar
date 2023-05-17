@@ -90,23 +90,24 @@ func New(o *Options) (*Jar, error) {
 // This struct type is not used outside of this package per se, but the exported
 // fields are those of RFC 6265.
 type entry struct {
-	Name       string
-	Value      string
-	Domain     string
-	Path       string
-	SameSite   string
-	Secure     bool
-	HttpOnly   bool
-	Persistent bool
-	HostOnly   bool
-	Expires    time.Time
-	Creation   time.Time
-	LastAccess time.Time
-	defPath    string
-	host       string
-	key        string
-	c          *http.Cookie
-	u          url.URL
+	Name                 string
+	Value                string
+	Domain               string
+	Path                 string
+	SameSite             string
+	Secure               bool
+	HttpOnly             bool
+	Persistent           bool
+	HostOnly             bool
+	Expires              time.Time
+	Creation             time.Time
+	LastAccess           time.Time
+	defPath              string
+	host                 string
+	key                  string
+	c                    *http.Cookie
+	u                    url.URL
+	SessionCookieSetTime time.Time
 
 	// seqNum is a sequence number so that Cookies returns cookies in a
 	// deterministic order, even for cookies that have equal Path length and
@@ -419,6 +420,7 @@ func (j *Jar) newEntry(c *http.Cookie, now time.Time, defPath, host string) (e e
 		if c.Expires.IsZero() {
 			e.Expires = endOfTime
 			e.Persistent = false
+			e.SessionCookieSetTime = now
 		} else {
 			if !c.Expires.After(now) {
 				return e, true, nil

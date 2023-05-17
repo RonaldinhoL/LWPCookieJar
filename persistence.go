@@ -20,11 +20,14 @@ func (j *Jar) GetAllCookies() (cookies []*http.Cookie) {
 }
 
 type PersistenceItem struct {
-	Key     string
-	DefPath string
-	Host    string
-	Cookie  *http.Cookie
-	U       url.URL
+	// key 是在 cookieJar map 里面的 key
+	Key                  string
+	DefPath              string
+	Host                 string
+	Cookie               *http.Cookie
+	U                    url.URL
+	SessionCookieSetTime time.Time
+	Domain               string
 }
 
 func (j *Jar) GetAllCookiesAsPersistenceItems() []PersistenceItem {
@@ -33,13 +36,24 @@ func (j *Jar) GetAllCookiesAsPersistenceItems() []PersistenceItem {
 
 	items := make([]PersistenceItem, 0)
 	for _, hostCookies := range j.entries {
-		for _, entry := range hostCookies {
+		for _, e := range hostCookies {
+			cookie := e.c
+			// remove MaxAge, becasue it has been add to Expires
+			if cookie.MaxAge > 0 {
+				// prefer original Expires
+				if cookie.Expires.IsZero() {
+					cookie.Expires = e.Expires
+				}
+				cookie.MaxAge = 0
+			}
 			items = append(items, PersistenceItem{
-				Key:     entry.key,
-				DefPath: entry.defPath,
-				Host:    entry.host,
-				Cookie:  entry.c,
-				U:       entry.u,
+				Key:                  e.key,
+				DefPath:              e.defPath,
+				Host:                 e.host,
+				Cookie:               cookie,
+				U:                    e.u,
+				SessionCookieSetTime: e.SessionCookieSetTime,
+				Domain:               e.Domain,
 			})
 		}
 	}
@@ -48,8 +62,6 @@ func (j *Jar) GetAllCookiesAsPersistenceItems() []PersistenceItem {
 
 func (j *Jar) SerializeCookiesToStr() (string, error) {
 	items := j.GetAllCookiesAsPersistenceItems()
-	j.mu.Lock()
-	defer j.mu.Unlock()
 
 	if r, err := json.Marshal(items); err != nil {
 		return "", err
@@ -58,7 +70,7 @@ func (j *Jar) SerializeCookiesToStr() (string, error) {
 	}
 }
 
-func (j *Jar) DeserializeCookiesFromStr(cookiesStr string) (err error) {
+func (j *Jar) DeserializeCookiesFromStr(cookiesStr string, sessionCookieAliveDuration time.Duration) (err error) {
 	var items []PersistenceItem
 	err = json.Unmarshal([]byte(cookiesStr), &items)
 
@@ -66,58 +78,30 @@ func (j *Jar) DeserializeCookiesFromStr(cookiesStr string) (err error) {
 		return
 	}
 
-	j.mu.Lock()
-	defer j.mu.Unlock()
-	now := time.Now()
-
-	modified := false
 	for _, i := range items {
-		key := i.Key
-		submap := j.entries[key]
-		host := i.Host
-		defPath := i.DefPath
+		// 这里要用指针，否则所有cookie都会指向同一个地址
 		cookie := i.Cookie
-		u := i.U
-
-		e, remove, err := j.newEntry(cookie, now, defPath, host)
-		if err != nil {
-			continue
-		}
-		id := e.id()
-		if remove {
-			if submap != nil {
-				if _, ok := submap[id]; ok {
-					delete(submap, id)
-					modified = true
-				}
+		if cookie.RawExpires != "" {
+			cookie.Expires, err = ParseDateString(cookie.RawExpires)
+			if err != nil {
+				return err
 			}
+		}
+		if !cookie.Expires.IsZero() && time.Now().Sub(cookie.Expires) > 0 {
+			// delete expired cookies
 			continue
 		}
-		if submap == nil {
-			submap = make(map[string]entry)
-		}
-
-		if old, ok := submap[id]; ok {
-			e.Creation = old.Creation
-			e.seqNum = old.seqNum
-		} else {
-			e.Creation = now
-			e.seqNum = j.nextSeqNum
-			j.nextSeqNum++
-		}
-		e.LastAccess = now
-		e.key = key
-		e.u = u
-		submap[id] = e
-		modified = true
-
-		if modified {
-			if len(submap) == 0 {
-				delete(j.entries, key)
+		// check the session cookie if expired
+		if !i.SessionCookieSetTime.IsZero() && sessionCookieAliveDuration > 0 {
+			if time.Now().Sub(i.SessionCookieSetTime) > sessionCookieAliveDuration {
+				continue
 			} else {
-				j.entries[key] = submap
+				cookie.Expires = i.SessionCookieSetTime.Add(sessionCookieAliveDuration)
 			}
 		}
+		j.SetCookies(&i.U, []*http.Cookie{
+			cookie,
+		})
 	}
 	return
 }
@@ -154,4 +138,17 @@ func SameSiteIntToStr(sameSite http.SameSite) string {
 	default:
 		return ""
 	}
+}
+
+func ParseDateString(dt string) (t time.Time, err error) {
+	t, err = time.Parse("Mon, 02-Jan-2006 15:04:05 MST", dt)
+	if err != nil {
+		t, err = time.Parse("Mon, 02 Jan 2006 15:04:05 MST", dt)
+	}
+	if err != nil {
+		// Fri, 17-May-24 03:22:24 GMT
+		t, err = time.Parse("Mon, 02-Jan-06 15:04:05 MST", dt)
+	}
+
+	return
 }
