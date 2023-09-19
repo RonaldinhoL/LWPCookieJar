@@ -60,9 +60,13 @@ func (j *Jar) GetAllCookiesAsPersistenceItems() []PersistenceItem {
 	return items
 }
 
-func (j *Jar) SerializeCookiesToStr() (string, error) {
+func (j *Jar) SerializeCookiesToItems() []PersistenceItem {
 	items := j.GetAllCookiesAsPersistenceItems()
+	return items
+}
 
+func (j *Jar) SerializeCookiesToStr() (string, error) {
+	items := j.SerializeCookiesToItems()
 	if r, err := json.Marshal(items); err != nil {
 		return "", err
 	} else {
@@ -70,14 +74,10 @@ func (j *Jar) SerializeCookiesToStr() (string, error) {
 	}
 }
 
-func (j *Jar) DeserializeCookiesFromStr(cookiesStr string, sessionCookieAliveDuration time.Duration) (err error) {
-	var items []PersistenceItem
-	err = json.Unmarshal([]byte(cookiesStr), &items)
-
+func (j *Jar) DeserializeCookiesFromItemsWithDuration(items []PersistenceItem, sessionCookieAliveDuration time.Duration) (err error) {
 	if len(items) == 0 {
 		return
 	}
-
 	for _, i := range items {
 		// 这里要用指针，否则所有cookie都会指向同一个地址
 		cookie := i.Cookie
@@ -104,6 +104,15 @@ func (j *Jar) DeserializeCookiesFromStr(cookiesStr string, sessionCookieAliveDur
 		})
 	}
 	return
+}
+
+func (j *Jar) DeserializeCookiesFromStr(cookiesStr string, sessionCookieAliveDuration time.Duration) (err error) {
+	var items []PersistenceItem
+	err = json.Unmarshal([]byte(cookiesStr), &items)
+	if err != nil {
+		return err
+	}
+	return j.DeserializeCookiesFromItemsWithDuration(items, sessionCookieAliveDuration)
 }
 
 func SameSiteStrToInt(val string) (SameSite http.SameSite) {
