@@ -25,9 +25,35 @@ type PersistenceItem struct {
 	DefPath              string
 	Host                 string
 	Cookie               *http.Cookie
+	U                    string
+	SessionCookieSetTime time.Time
+	Domain               string
+}
+
+type persistenceItemV1 struct {
+	// key 是在 cookieJar map 里面的 key
+	Key                  string
+	DefPath              string
+	Host                 string
+	Cookie               *http.Cookie
 	U                    url.URL
 	SessionCookieSetTime time.Time
 	Domain               string
+}
+
+func v1ToNew(v1Items []persistenceItemV1) (ret []PersistenceItem) {
+	for _, item := range v1Items {
+		ret = append(ret, PersistenceItem{
+			Key:                  item.Key,
+			DefPath:              item.DefPath,
+			Host:                 item.Host,
+			Cookie:               item.Cookie,
+			U:                    item.U.String(),
+			SessionCookieSetTime: item.SessionCookieSetTime,
+			Domain:               item.Domain,
+		})
+	}
+	return
 }
 
 func (j *Jar) GetAllCookiesAsPersistenceItems() []PersistenceItem {
@@ -51,7 +77,7 @@ func (j *Jar) GetAllCookiesAsPersistenceItems() []PersistenceItem {
 				DefPath:              e.defPath,
 				Host:                 e.host,
 				Cookie:               cookie,
-				U:                    e.u,
+				U:                    e.u.String(),
 				SessionCookieSetTime: e.SessionCookieSetTime,
 				Domain:               e.Domain,
 			})
@@ -99,7 +125,11 @@ func (j *Jar) DeserializeCookiesFromItemsWithDuration(items []PersistenceItem, s
 				cookie.Expires = i.SessionCookieSetTime.Add(sessionCookieAliveDuration)
 			}
 		}
-		j.SetCookies(&i.U, []*http.Cookie{
+		u, err := url.Parse(i.U)
+		if err != nil {
+			return err
+		}
+		j.SetCookies(u, []*http.Cookie{
 			cookie,
 		})
 	}
@@ -110,7 +140,12 @@ func (j *Jar) DeserializeCookiesFromStr(cookiesStr string, sessionCookieAliveDur
 	var items []PersistenceItem
 	err = json.Unmarshal([]byte(cookiesStr), &items)
 	if err != nil {
-		return err
+		itemsV1 := []persistenceItemV1{}
+		err = json.Unmarshal([]byte(cookiesStr), &itemsV1)
+		if err != nil {
+			return err
+		}
+		items = v1ToNew(itemsV1)
 	}
 	return j.DeserializeCookiesFromItemsWithDuration(items, sessionCookieAliveDuration)
 }
