@@ -21,13 +21,16 @@ func (j *Jar) GetAllCookies() (cookies []*http.Cookie) {
 
 type PersistenceItem struct {
 	// key 是在 cookieJar map 里面的 key
-	Key                  string
-	DefPath              string
-	Host                 string
-	Cookie               *http.Cookie
-	U                    string
+	Key     string
+	DefPath string
+	Host    string
+	Cookie  *http.Cookie
+	U       string
+	// 这个时间是标识 session Cookie 被创建的时间，恢复的时候用来判断是否需要丢弃
 	SessionCookieSetTime time.Time
-	Domain               string
+	// 改为使用导出时的时间
+	SessionCookieExportTime time.Time
+	Domain                  string
 }
 
 type persistenceItemV1 struct {
@@ -44,13 +47,14 @@ type persistenceItemV1 struct {
 func v1ToNew(v1Items []persistenceItemV1) (ret []PersistenceItem) {
 	for _, item := range v1Items {
 		ret = append(ret, PersistenceItem{
-			Key:                  item.Key,
-			DefPath:              item.DefPath,
-			Host:                 item.Host,
-			Cookie:               item.Cookie,
-			U:                    item.U.String(),
-			SessionCookieSetTime: item.SessionCookieSetTime,
-			Domain:               item.Domain,
+			Key:                     item.Key,
+			DefPath:                 item.DefPath,
+			Host:                    item.Host,
+			Cookie:                  item.Cookie,
+			U:                       item.U.String(),
+			SessionCookieSetTime:    item.SessionCookieSetTime,
+			SessionCookieExportTime: item.SessionCookieSetTime,
+			Domain:                  item.Domain,
 		})
 	}
 	return
@@ -64,7 +68,7 @@ func (j *Jar) GetAllCookiesAsPersistenceItems() []PersistenceItem {
 	for _, hostCookies := range j.entries {
 		for _, e := range hostCookies {
 			cookie := e.c
-			// remove MaxAge, becasue it has been add to Expires
+			// MaxAge 只在接受到 cookie的当时才有效，持久化的话要删除它
 			if cookie.MaxAge > 0 {
 				// prefer original Expires
 				if cookie.Expires.IsZero() {
@@ -73,13 +77,14 @@ func (j *Jar) GetAllCookiesAsPersistenceItems() []PersistenceItem {
 				cookie.MaxAge = 0
 			}
 			items = append(items, PersistenceItem{
-				Key:                  e.key,
-				DefPath:              e.defPath,
-				Host:                 e.host,
-				Cookie:               cookie,
-				U:                    e.u.String(),
-				SessionCookieSetTime: e.SessionCookieSetTime,
-				Domain:               e.Domain,
+				Key:                     e.key,
+				DefPath:                 e.defPath,
+				Host:                    e.host,
+				Cookie:                  cookie,
+				U:                       e.u.String(),
+				SessionCookieSetTime:    e.SessionCookieSetTime,
+				SessionCookieExportTime: time.Now(),
+				Domain:                  e.Domain,
 			})
 		}
 	}
@@ -118,11 +123,12 @@ func (j *Jar) DeserializeCookiesFromItemsWithDuration(items []PersistenceItem, s
 			continue
 		}
 		// check the session cookie if expired
-		if !i.SessionCookieSetTime.IsZero() && sessionCookieAliveDuration > 0 {
-			if time.Now().Sub(i.SessionCookieSetTime) > sessionCookieAliveDuration {
+		// 改为使用导出时的时间 SessionCookieExportTime，这样只要 cookie 一直在被使用，就不会被丢弃
+		if !i.SessionCookieExportTime.IsZero() && sessionCookieAliveDuration > 0 {
+			if time.Now().Sub(i.SessionCookieExportTime) > sessionCookieAliveDuration {
 				continue
 			} else {
-				cookie.Expires = i.SessionCookieSetTime.Add(sessionCookieAliveDuration)
+				cookie.Expires = i.SessionCookieExportTime.Add(sessionCookieAliveDuration)
 			}
 		}
 		u, err := url.Parse(i.U)
