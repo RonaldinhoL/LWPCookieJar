@@ -27,9 +27,9 @@ type PersistenceItem struct {
 	Cookie  *http.Cookie
 	U       string
 	// 这个时间是标识 session Cookie 被创建的时间，恢复的时候用来判断是否需要丢弃
-	SessionCookieSetTime time.Time
+	SessionCookieSetTime time.Time `json:",omitempty"`
 	// 改为使用导出时的时间
-	SessionCookieExportTime time.Time
+	SessionCookieExportTime time.Time `json:",omitempty"`
 	Domain                  string
 }
 
@@ -76,16 +76,18 @@ func (j *Jar) GetAllCookiesAsPersistenceItems() []PersistenceItem {
 				}
 				cookie.MaxAge = 0
 			}
-			items = append(items, PersistenceItem{
-				Key:                     e.key,
-				DefPath:                 e.defPath,
-				Host:                    e.host,
-				Cookie:                  cookie,
-				U:                       e.u.String(),
-				SessionCookieSetTime:    e.SessionCookieSetTime,
-				SessionCookieExportTime: time.Now(),
-				Domain:                  e.Domain,
-			})
+			i := PersistenceItem{
+				Key:     e.key,
+				DefPath: e.defPath,
+				Host:    e.host,
+				Cookie:  cookie,
+				U:       e.u.String(),
+				Domain:  e.Domain,
+			}
+			if !e.Persistent {
+				i.SessionCookieExportTime = time.Now()
+			}
+			items = append(items, i)
 		}
 	}
 	return items
@@ -124,11 +126,11 @@ func (j *Jar) DeserializeCookiesFromItemsWithDuration(items []PersistenceItem, s
 		}
 		// check the session cookie if expired
 		// 改为使用导出时的时间 SessionCookieExportTime，这样只要 cookie 一直在被使用，就不会被丢弃
-		if !i.SessionCookieExportTime.IsZero() && sessionCookieAliveDuration > 0 {
-			if time.Now().Sub(i.SessionCookieExportTime) > sessionCookieAliveDuration {
-				continue
-			} else {
-				cookie.Expires = i.SessionCookieExportTime.Add(sessionCookieAliveDuration)
+		if i.Cookie.MaxAge == 0 && i.Cookie.Expires.IsZero() {
+			if !i.SessionCookieExportTime.IsZero() && sessionCookieAliveDuration > 0 {
+				if time.Now().Sub(i.SessionCookieExportTime) > sessionCookieAliveDuration {
+					continue
+				}
 			}
 		}
 		u, err := url.Parse(i.U)
