@@ -247,6 +247,7 @@ func (j *Jar) setCookies(u *url.URL, cookies []*http.Cookie, now time.Time) {
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return
 	}
+	// 规范化：去除端口，全部转小写
 	host, err := canonicalHost(u.Host)
 	if err != nil {
 		return
@@ -410,6 +411,14 @@ func (j *Jar) newEntry(c *http.Cookie, now time.Time, defPath, host string) (e e
 		return e, false, err
 	}
 
+	if !e.HostOnly {
+		// 不是 host only 的情况下
+		// 必须当 domain 是 host 的子后缀时才修改，比如 host = www.baidu.com, domain = baidu.com
+		if e.Domain != host && hasDotSuffix(host, c.Domain) {
+			c.Domain = "." + c.Domain
+		}
+	}
+
 	// MaxAge takes precedence over Expires.
 	if c.MaxAge < 0 {
 		return e, true, nil
@@ -533,6 +542,8 @@ func (j *Jar) domainAndType(host, domain string) (string, bool, error) {
 	// See RFC 6265 section 5.3 #5.
 	if j.psList != nil {
 		if ps := j.psList.PublicSuffix(domain); ps != "" && !hasDotSuffix(domain, ps) {
+			// 公共后缀不是子后缀，只能是 domain 自己就是公共后缀的情况，比如 domain = pvt.k12.ma.us
+			// 这时候这个 cookie 只能匹配这个公共后缀
 			if host == domain {
 				// This is the one exception in which a cookie
 				// with a domain attribute is a host cookie.
