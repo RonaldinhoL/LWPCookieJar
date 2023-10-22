@@ -194,14 +194,28 @@ func SameSiteIntToStr(sameSite http.SameSite) string {
 }
 
 func ParseDateString(dt string) (t time.Time, err error) {
-	t, err = time.Parse("Mon, 02-Jan-2006 15:04:05 MST", dt)
-	if err != nil {
-		t, err = time.Parse("Mon, 02 Jan 2006 15:04:05 MST", dt)
-	}
-	if err != nil {
-		// Fri, 17-May-24 03:22:24 GMT
-		t, err = time.Parse("Mon, 02-Jan-06 15:04:05 MST", dt)
+	layouts := []string{
+		// rfc3389
+		"2006-01-02T15:04:05Z07:00",
+		// rfc1123
+		"Mon, 02 Jan 2006 15:04:05 MST",
+		"Mon, _2 Jan 2006 15:04:05 MST",
+
+		"Mon, 02-Jan-2006 15:04:05 MST",
+		"Mon, _2-Jan-2006 15:04:05 MST",
+
+		"Mon, 02-Jan-06 15:04:05 MST",
+		"Mon, _2-Jan-06 15:04:05 MST",
+		// rfc 822
+		"02 Jan 06 15:04 MST",
+		// UnixDate
+		"Mon Jan _2 15:04:05 MST 2006",
 	}
 
+	for _, layout := range layouts {
+		if t, err = time.Parse(layout, dt); err == nil {
+			return
+		}
+	}
 	return
 }
