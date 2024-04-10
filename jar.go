@@ -424,6 +424,10 @@ func (j *Jar) newEntry(c *http.Cookie, now time.Time, defPath, host string) (e e
 		return e, true, nil
 	} else if c.MaxAge > 0 {
 		e.Expires = now.Add(time.Duration(c.MaxAge) * time.Second)
+		// 去掉 MaxAge
+		c.MaxAge = 0
+		// 覆盖 cookie.Expires
+		c.Expires = e.Expires
 		e.Persistent = true
 	} else {
 		if c.Expires.IsZero() {
