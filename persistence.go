@@ -2,6 +2,7 @@ package cookiejar
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"sort"
@@ -292,4 +293,17 @@ func (j *Jar) cookiesOriginal(u *url.URL, now time.Time) (cookies []*http.Cookie
 }
 func (j *Jar) CookiesOriginal(u *url.URL) (cookies []*http.Cookie) {
 	return j.cookiesOriginal(u, time.Now())
+}
+
+/*
+获取指定 url 的 cookies 然后转成 a=b;c=d 的形式
+*/
+func (j *Jar) CookiesToStrBySemi(u *url.URL) string {
+	cookies := j.Cookies(u)
+	var cookiesArr []string
+	for _, cookie := range cookies {
+		cookiesArr = append(cookiesArr, fmt.Sprintf("%s=%s", cookie.Name, cookie.Value))
+	}
+	cookiesStr := strings.Join(cookiesArr, ";")
+	return cookiesStr
 }
