@@ -291,6 +291,10 @@ func (j *Jar) cookiesOriginal(u *url.URL, now time.Time) (cookies []*http.Cookie
 
 	return cookies
 }
+
+/*
+同 cookies，但是不抹除信息
+*/
 func (j *Jar) CookiesOriginal(u *url.URL) (cookies []*http.Cookie) {
 	return j.cookiesOriginal(u, time.Now())
 }
@@ -306,4 +310,20 @@ func (j *Jar) CookiesToStrBySemi(u *url.URL) string {
 	}
 	cookiesStr := strings.Join(cookiesArr, ";")
 	return cookiesStr
+}
+
+func (j *Jar) GetCookieByName(u *url.URL, name string) *http.Cookie {
+	var cookies []*http.Cookie
+	if u == nil {
+		cookies = j.GetAllCookies()
+	} else {
+		cookies = j.Cookies(u)
+	}
+
+	for _, cookie := range cookies {
+		if cookie.Name == name {
+			return cookie
+		}
+	}
+	return nil
 }
