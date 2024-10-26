@@ -327,3 +327,54 @@ func (j *Jar) GetCookieByName(u *url.URL, name string) *http.Cookie {
 	}
 	return nil
 }
+
+func (j *Jar) deleteFromSubMap(submap map[string]entry, cookies []*http.Cookie) {
+	for key, e := range submap {
+		cookie := e.c
+
+		for _, dCookie := range cookies {
+
+			// 只检查 domain path name
+			if dCookie.Path != "" && dCookie.Path != cookie.Path {
+				continue
+			}
+			if dCookie.Domain != "" && dCookie.Domain != cookie.Domain {
+				continue
+			}
+			if dCookie.Name == cookie.Name {
+				// 删除 cookie
+				delete(submap, key)
+			}
+		}
+	}
+}
+
+func (j *Jar) DeleteCookies(u *url.URL, cookies []*http.Cookie) {
+	if u != nil {
+		// 只删除指定的 域名下的 cookie
+
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return
+		}
+		host, err := canonicalHost(u.Host)
+		if err != nil {
+			return
+		}
+		key := jarKey(host, j.psList)
+
+		j.mu.Lock()
+		defer j.mu.Unlock()
+
+		submap := j.entries[key]
+		if submap == nil {
+			return
+		}
+		j.deleteFromSubMap(submap, cookies)
+	} else {
+		// 删除所有域名下的cookie
+		for _, hostCookies := range j.entries {
+			j.deleteFromSubMap(hostCookies, cookies)
+		}
+	}
+
+}
